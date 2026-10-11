@@ -8,7 +8,7 @@ import { formatIndianRupees, formatIndianDate } from "@/lib/calculator";
 interface SnapshotModalProps {
   record: HistoryRecord | null;
   onClose: () => void;
-  onRecalculateAsOfToday: (mortgageDate: string, principalRupees: number) => void;
+  onRecalculateAsOfToday: (mortgageDate: string, principalRupees: number, monthlyRate?: number) => void;
 }
 
 export function SnapshotModal({
@@ -19,7 +19,7 @@ export function SnapshotModal({
   if (!record) return null;
 
   const handleRecalculate = () => {
-    onRecalculateAsOfToday(record.mortgageDate, record.principalRupees);
+    onRecalculateAsOfToday(record.mortgageDate, record.principalRupees, record.monthlyRate);
     onClose();
   };
 

@@ -8,6 +8,7 @@ import {
   BookmarkPlus,
   Check,
   AlertTriangle,
+  Percent,
 } from "lucide-react";
 import {
   calculateGoldMortgageInterest,
@@ -21,16 +22,27 @@ import { HistoryRecord } from "@/lib/types";
 
 interface CalculatorProps {
   onSavedToHistory: (record: HistoryRecord) => void;
-  externalPreset?: { mortgageDate: string; principalRupees: number } | null;
+  externalPreset?: {
+    mortgageDate: string;
+    principalRupees: number;
+    monthlyRate?: number;
+  } | null;
 }
 
 export function Calculator({
   onSavedToHistory,
   externalPreset,
 }: CalculatorProps) {
-  const [todayKolkata, setTodayKolkata] = useState<string>("");
+  const [todayKolkata, setTodayKolkata] = useState<string>(() => {
+    try {
+      return getTodayKolkataDateString();
+    } catch {
+      return "";
+    }
+  });
   const [mortgageDate, setMortgageDate] = useState<string>("");
   const [principalInput, setPrincipalInput] = useState<string>("");
+  const [monthlyRateInput, setMonthlyRateInput] = useState<string>("2");
 
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
@@ -45,7 +57,6 @@ export function Calculator({
       const today = getTodayKolkataDateString();
       setTodayKolkata(today);
     } catch {
-      // Fallback
       setTodayKolkata(new Date().toISOString().split("T")[0]);
     }
   }, []);
@@ -74,6 +85,8 @@ export function Calculator({
     if (externalPreset && todayKolkata) {
       setMortgageDate(externalPreset.mortgageDate);
       setPrincipalInput(String(externalPreset.principalRupees));
+      const targetRate = externalPreset.monthlyRate ?? DEFAULT_MONTHLY_RATE;
+      setMonthlyRateInput(String(targetRate));
       setCalcError(null);
       setSaveSuccess(false);
       setSaveError(null);
@@ -83,7 +96,7 @@ export function Calculator({
           mortgageDate: externalPreset.mortgageDate,
           principalRupees: externalPreset.principalRupees,
           asOfDate: todayKolkata,
-          monthlyRate: DEFAULT_MONTHLY_RATE,
+          monthlyRate: targetRate,
         });
         setResult(calculated);
       } catch (err) {
@@ -112,6 +125,13 @@ export function Calculator({
       return;
     }
 
+    const rate = parseFloat(monthlyRateInput);
+    if (!monthlyRateInput.trim() || isNaN(rate) || rate <= 0) {
+      setCalcError("Please enter a valid monthly interest rate greater than 0%.");
+      setResult(null);
+      return;
+    }
+
     if (!todayKolkata) {
       setCalcError("Determining today's date. Please try again.");
       return;
@@ -122,7 +142,7 @@ export function Calculator({
         mortgageDate,
         principalRupees: principal,
         asOfDate: todayKolkata,
-        monthlyRate: DEFAULT_MONTHLY_RATE,
+        monthlyRate: rate,
       });
       setResult(calculated);
     } catch (err) {
@@ -134,6 +154,7 @@ export function Calculator({
   const handleClear = () => {
     setMortgageDate("");
     setPrincipalInput("");
+    setMonthlyRateInput("2"); // Keep 2% as default
     setResult(null);
     setCalcError(null);
     setSaveSuccess(false);
@@ -259,12 +280,77 @@ export function Calculator({
             </div>
           </div>
 
-          {/* Rate Notice */}
-          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60 text-xs">
-            <span className="font-medium text-stone-700">Monthly Interest Rate:</span>
-            <span className="font-bold text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-md">
-              {DEFAULT_MONTHLY_RATE}% / month
-            </span>
+          {/* Dynamic Monthly Interest Rate Selector */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label
+                htmlFor="interest-rate-input"
+                className="block text-xs font-semibold text-stone-700 uppercase tracking-wide"
+              >
+                Monthly Interest Rate (%) <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] font-semibold text-amber-800">
+                Default: 2% / month
+              </span>
+            </div>
+
+            {/* Quick Preset Buttons (2%, 2.5%, 3%) */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {[
+                { label: "2% (Default)", value: "2" },
+                { label: "2.5%", value: "2.5" },
+                { label: "3%", value: "3" },
+              ].map((preset) => {
+                const isSelected = monthlyRateInput === preset.value;
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => {
+                      setMonthlyRateInput(preset.value);
+                      setCalcError(null);
+                      setSaveSuccess(false);
+                    }}
+                    className={`py-2 px-2 text-xs font-semibold rounded-xl border transition cursor-pointer text-center ${
+                      isSelected
+                        ? "bg-amber-100/90 border-amber-600 text-amber-900 ring-1 ring-amber-600 shadow-xs"
+                        : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dynamic Numeric Input */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
+                <Percent className="w-4 h-4 text-stone-400" />
+              </div>
+              <input
+                id="interest-rate-input"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="2.0, 2.5, 3.0 or custom rate"
+                value={monthlyRateInput}
+                onChange={(e) => {
+                  setMonthlyRateInput(e.target.value);
+                  setCalcError(null);
+                  setSaveSuccess(false);
+                }}
+                className="w-full pl-9 pr-24 py-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-stone-900 text-sm font-semibold transition"
+              />
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs font-medium text-stone-500">
+                % per month
+              </div>
+            </div>
+            <p className="text-[11px] text-stone-600 mt-1">
+              Select 2%, 2.5%, 3% or enter any custom rate above
+            </p>
           </div>
 
           {/* Validation Error Banner */}
@@ -352,6 +438,13 @@ export function Calculator({
             </div>
 
             <div className="flex justify-between items-center px-3.5 py-2.5">
+              <span className="text-stone-500">Monthly Interest Rate</span>
+              <span className="font-semibold text-stone-800">
+                {result.monthlyRate}% / month
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center px-3.5 py-2.5">
               <span className="text-stone-500">Interest Accrued</span>
               <span className="font-bold text-amber-800">
                 {formatIndianRupees(result.interestRupees)}
@@ -398,7 +491,7 @@ export function Calculator({
           </div>
 
           <p className="text-[11px] text-stone-600 text-center leading-normal">
-            Calculated amount due under standard 2% simple interest terms. This calculation does not constitute a legal or contractual payoff quote.
+            Calculated amount due under simple interest terms ({result.monthlyRate}% / month). This calculation does not constitute a legal or contractual payoff quote.
           </p>
         </div>
       )}

@@ -17,6 +17,7 @@ export default function HomePage() {
   const [externalPreset, setExternalPreset] = useState<{
     mortgageDate: string;
     principalRupees: number;
+    monthlyRate?: number;
   } | null>(null);
 
   // Load history records from MongoDB
@@ -74,8 +75,12 @@ export default function HomePage() {
     }
   };
 
-  const handleRecalculateAsOfToday = (mortgageDate: string, principalRupees: number) => {
-    setExternalPreset({ mortgageDate, principalRupees });
+  const handleRecalculateAsOfToday = (
+    mortgageDate: string,
+    principalRupees: number,
+    monthlyRate?: number
+  ) => {
+    setExternalPreset({ mortgageDate, principalRupees, monthlyRate });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
