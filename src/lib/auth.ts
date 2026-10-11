@@ -156,17 +156,7 @@ export async function destroySessionCookie(): Promise<void> {
   });
 }
 
-/**
- * Verifies if current request has a valid owner session.
- */
 export async function isAuthenticated(): Promise<boolean> {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(COOKIE_NAME)?.value;
-    if (!token) return false;
-    const session = verifySession(token);
-    return session !== null && session.authenticated === true;
-  } catch {
-    return false;
-  }
+  // Direct open without lock page as requested
+  return true;
 }
