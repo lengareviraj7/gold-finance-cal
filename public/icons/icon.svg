@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fdfbf5"/>
+      <stop offset="50%" stop-color="#dfbd69"/>
+      <stop offset="100%" stop-color="#b48325"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1f1d1a"/>
+      <stop offset="100%" stop-color="#141210"/>
+    </linearGradient>
+  </defs>
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  
+  <!-- Subtle gold border -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="#b48325" stroke-width="6" opacity="0.4"/>
+  
+  <!-- Center Gold Ring / Seal Motif -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#goldGrad)" stroke-width="14"/>
+  
+  <!-- Indian Rupee Symbol with Jeweled Elegance -->
+  <path d="M 210 160 L 302 160 M 210 200 L 302 200 M 210 160 L 210 240 C 250 240 280 240 280 280 C 280 320 230 320 210 320 M 250 320 L 305 390" 
+        fill="none" stroke="url(#goldGrad)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+        
+  <!-- Small diamond accent at top -->
+  <polygon points="256,120 268,135 256,150 244,135" fill="#fdfbf5"/>
+</svg>
