@@ -16,7 +16,15 @@ export const MINIMUM_CHARGE_FIRST_PERIOD_MONTHS = 1.0;
 export const REMAINDER_DAYS_TIER_1_MAX = 5;
 export const REMAINDER_DAYS_TIER_2_MAX = 15;
 
-export const CALCULATION_RULE_VERSION = "v1-siddheshwar-calendar-anniversary-2pct";
+// Yearly compounding period (capitalizes interest every 12 months)
+export const COMPOUNDING_PERIOD_MONTHS = 12;
+
+export type InterestMode = "yearly_compound" | "simple";
+export const DEFAULT_INTEREST_MODE: InterestMode = "yearly_compound";
+
+export const CALCULATION_RULE_VERSION_COMPOUND = "v2-siddheshwar-yearly-compound";
+export const CALCULATION_RULE_VERSION_SIMPLE = "v2-siddheshwar-simple";
+export const CALCULATION_RULE_VERSION = CALCULATION_RULE_VERSION_COMPOUND;
 
 export interface ParsedDate {
   year: number;
@@ -29,6 +37,18 @@ export interface CalculationInput {
   principalRupees: number; // In rupees (> 0)
   asOfDate: string; // YYYY-MM-DD
   monthlyRate?: number; // Default 2.0%
+  interestMode?: InterestMode; // Default "yearly_compound"
+}
+
+export interface YearlyBreakdownItem {
+  year: number;
+  months: number;
+  startingPrincipalPaise: number;
+  startingPrincipalRupees: number;
+  interestPaise: number;
+  interestRupees: number;
+  endingAmountPaise: number;
+  endingAmountRupees: number;
 }
 
 export interface CalculationResult {
@@ -37,6 +57,7 @@ export interface CalculationResult {
   principalPaise: number;
   principalRupees: number;
   monthlyRate: number;
+  interestMode: InterestMode;
   completedMonths: number;
   remainderDays: number;
   chargeableMonths: number;
@@ -45,6 +66,7 @@ export interface CalculationResult {
   totalDuePaise: number;
   totalDueRupees: number;
   elapsedDescription: string;
+  yearlyBreakdown: YearlyBreakdownItem[];
   ruleVersion: string;
 }
 
@@ -191,11 +213,15 @@ export function formatIndianDate(dateStr: string): string {
 
 /**
  * Main calculation function.
+ * Supports both:
+ * - "yearly_compound" (default): compounds accrued interest into principal every 12 months
+ * - "simple": simple interest on original principal only
  * Validates inputs, handles edge cases, and computes interest using exact paise arithmetic.
  */
 export function calculateGoldMortgageInterest(input: CalculationInput): CalculationResult {
   const { mortgageDate: mortgageDateStr, principalRupees, asOfDate: asOfDateStr } = input;
   const monthlyRate = input.monthlyRate ?? DEFAULT_MONTHLY_RATE;
+  const interestMode: InterestMode = input.interestMode ?? DEFAULT_INTEREST_MODE;
 
   if (typeof principalRupees !== "number" || isNaN(principalRupees) || principalRupees <= 0) {
     throw new Error("Principal amount must be a valid number strictly greater than ₹0.");
@@ -203,6 +229,10 @@ export function calculateGoldMortgageInterest(input: CalculationInput): Calculat
 
   if (typeof monthlyRate !== "number" || isNaN(monthlyRate) || monthlyRate < 0) {
     throw new Error("Monthly interest rate must be a non-negative number.");
+  }
+
+  if (interestMode !== "yearly_compound" && interestMode !== "simple") {
+    throw new Error("Interest mode must be 'yearly_compound' or 'simple'.");
   }
 
   const mortgage = parseDateString(mortgageDateStr);
@@ -216,6 +246,10 @@ export function calculateGoldMortgageInterest(input: CalculationInput): Calculat
 
   // Work with integer paise to eliminate floating-point drift
   const principalPaise = Math.round(principalRupees * 100);
+  const ruleVersion =
+    interestMode === "yearly_compound"
+      ? CALCULATION_RULE_VERSION_COMPOUND
+      : CALCULATION_RULE_VERSION_SIMPLE;
 
   // Case 1: Same day (mortgageDate === asOfDate)
   if (totalDayDiff === 0) {
@@ -225,6 +259,7 @@ export function calculateGoldMortgageInterest(input: CalculationInput): Calculat
       principalPaise,
       principalRupees: principalPaise / 100,
       monthlyRate,
+      interestMode,
       completedMonths: 0,
       remainderDays: 0,
       chargeableMonths: 0,
@@ -233,7 +268,8 @@ export function calculateGoldMortgageInterest(input: CalculationInput): Calculat
       totalDuePaise: principalPaise,
       totalDueRupees: principalPaise / 100,
       elapsedDescription: "0 days (same day)",
-      ruleVersion: CALCULATION_RULE_VERSION,
+      yearlyBreakdown: [],
+      ruleVersion,
     };
   }
 
@@ -271,11 +307,55 @@ export function calculateGoldMortgageInterest(input: CalculationInput): Calculat
     }
   }
 
-  // Calculate interest: principal * (monthlyRate / 100) * chargeableMonths
-  // Do integer paise calculation safely:
-  // interestPaise = Math.round(principalPaise * (monthlyRate / 100) * chargeableMonths)
-  const interestPaise = Math.round(principalPaise * (monthlyRate / 100) * chargeableMonths);
-  const totalDuePaise = principalPaise + interestPaise;
+  const yearlyBreakdown: YearlyBreakdownItem[] = [];
+  let interestPaise = 0;
+  let totalDuePaise = principalPaise;
+
+  if (interestMode === "simple") {
+    interestPaise = Math.round((principalPaise * monthlyRate * chargeableMonths) / 100);
+    totalDuePaise = principalPaise + interestPaise;
+    yearlyBreakdown.push({
+      year: 1,
+      months: chargeableMonths,
+      startingPrincipalPaise: principalPaise,
+      startingPrincipalRupees: principalPaise / 100,
+      interestPaise,
+      interestRupees: interestPaise / 100,
+      endingAmountPaise: totalDuePaise,
+      endingAmountRupees: totalDuePaise / 100,
+    });
+  } else {
+    // Yearly compounding: capitalize accrued interest into principal every 12 months
+    let remainingMonths = chargeableMonths;
+    let currentPrincipalPaise = principalPaise;
+    let yearNumber = 1;
+
+    while (remainingMonths > 0) {
+      const monthsInYear = Math.min(remainingMonths, COMPOUNDING_PERIOD_MONTHS);
+      const yearInterestPaise = Math.round(
+        (currentPrincipalPaise * monthlyRate * monthsInYear) / 100
+      );
+      const endingAmountPaise = currentPrincipalPaise + yearInterestPaise;
+
+      yearlyBreakdown.push({
+        year: yearNumber,
+        months: monthsInYear,
+        startingPrincipalPaise: currentPrincipalPaise,
+        startingPrincipalRupees: currentPrincipalPaise / 100,
+        interestPaise: yearInterestPaise,
+        interestRupees: yearInterestPaise / 100,
+        endingAmountPaise,
+        endingAmountRupees: endingAmountPaise / 100,
+      });
+
+      interestPaise += yearInterestPaise;
+      currentPrincipalPaise = endingAmountPaise;
+      remainingMonths = Math.round((remainingMonths - monthsInYear) * 100) / 100;
+      yearNumber++;
+    }
+
+    totalDuePaise = currentPrincipalPaise;
+  }
 
   // Format elapsed description
   let elapsedDescription: string;
@@ -295,6 +375,7 @@ export function calculateGoldMortgageInterest(input: CalculationInput): Calculat
     principalPaise,
     principalRupees: principalPaise / 100,
     monthlyRate,
+    interestMode,
     completedMonths,
     remainderDays,
     chargeableMonths,
@@ -303,6 +384,7 @@ export function calculateGoldMortgageInterest(input: CalculationInput): Calculat
     totalDuePaise,
     totalDueRupees: totalDuePaise / 100,
     elapsedDescription,
-    ruleVersion: CALCULATION_RULE_VERSION,
+    yearlyBreakdown,
+    ruleVersion,
   };
 }

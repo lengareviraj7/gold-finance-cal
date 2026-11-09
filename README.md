@@ -22,9 +22,18 @@ A lightweight, mobile-first web app designed specifically for **Siddheshwar Jewe
 
 ## 2. Exact Interest Calculation Rules
 
-Interest is computed using **simple interest on the original principal only**:
+The calculator supports **Yearly Compounding (12-month rest, default)** as well as an optional **Simple Interest** mode:
 
-$$\text{Interest} = \text{Principal} \times \left(\frac{\text{Monthly Rate}}{100}\right) \times \text{Chargeable Months}$$
+- **Yearly Compounding (Default)**:
+  - For every 12-month block (`Year 1`, `Year 2`, `Year 3`, ...), simple interest is calculated for up to 12 months on the current year's capital:
+    $$\text{Year Interest} = \text{Current Capital} \times \left(\frac{\text{Monthly Rate}}{100}\right) \times \text{Months in Year}$$
+  - When a full 12-month year completes and the loan continues into the 13th month (or 25th, 37th, etc.), the previous year's principal + accrued interest becomes the new starting capital.
+  - **Example (₹20,000 at 3% / month)**:
+    - **Year 1 (12 months)**: ₹20,000 × 3% × 12 = **₹7,200** interest → New Capital = **₹27,200**
+    - **13th Month (Year 2, 1 month)**: ₹27,200 × 3% × 1 = **₹816** interest → Total Due = **₹28,016**
+- **Simple Interest (Optional Toggle)**:
+  - Interest is calculated on the original principal only across all chargeable months:
+    $$\text{Interest} = \text{Principal} \times \left(\frac{\text{Monthly Rate}}{100}\right) \times \text{Chargeable Months}$$
 
 $$\text{Total Due} = \text{Principal} + \text{Interest}$$
 

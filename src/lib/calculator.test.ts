@@ -5,7 +5,7 @@ import {
   getAnniversaryDate,
   formatIndianRupees,
   formatIndianDate,
-  DEFAULT_MONTHLY_RATE,
+  DEFAULT_INTEREST_MODE,
 } from "./calculator";
 
 describe("Gold Mortgage Interest Calculator", () => {
@@ -25,7 +25,7 @@ describe("Gold Mortgage Interest Calculator", () => {
     it("handles 31st of month anniversaries across shorter months safely", () => {
       // Mortgage on Jan 31, 2024 (leap year)
       const jan31 = { year: 2024, month: 1, day: 31 };
-      
+
       // 1 month -> Feb 29, 2024 (leap year end of month)
       expect(getAnniversaryDate(jan31, 1)).toEqual({ year: 2024, month: 2, day: 29 });
 
@@ -85,6 +85,18 @@ describe("Gold Mortgage Interest Calculator", () => {
         })
       ).toThrow("strictly greater than ₹0");
     });
+
+    it("rejects invalid interest mode", () => {
+      expect(() =>
+        calculateGoldMortgageInterest({
+          mortgageDate: "2026-01-01",
+          principalRupees: 10000,
+          asOfDate: "2026-02-01",
+          // @ts-expect-error testing invalid mode at runtime
+          interestMode: "invalid_mode",
+        })
+      ).toThrow("Interest mode must be");
+    });
   });
 
   describe("Same day loan rule", () => {
@@ -102,6 +114,7 @@ describe("Gold Mortgage Interest Calculator", () => {
       expect(res.interestRupees).toBe(0);
       expect(res.totalDuePaise).toBe(5000000);
       expect(res.totalDueRupees).toBe(50000);
+      expect(res.yearlyBreakdown).toEqual([]);
       expect(res.elapsedDescription).toContain("0 days");
     });
   });
@@ -225,6 +238,170 @@ describe("Gold Mortgage Interest Calculator", () => {
       expect(res.chargeableMonths).toBe(2.5);
       expect(res.interestRupees).toBe(500);
       expect(res.totalDueRupees).toBe(10500);
+    });
+  });
+
+  describe("Yearly Compounding (12-Month Capitalization)", () => {
+    it("defaults to yearly_compound mode", () => {
+      expect(DEFAULT_INTEREST_MODE).toBe("yearly_compound");
+    });
+
+    it("User Example: ₹20,000 at 3% for 12 months = ₹7,200 interest -> ₹27,200 total", () => {
+      const res = calculateGoldMortgageInterest({
+        mortgageDate: "2025-11-01",
+        principalRupees: 20000,
+        asOfDate: "2026-11-01", // 12 months
+        monthlyRate: 3,
+      });
+
+      expect(res.interestMode).toBe("yearly_compound");
+      expect(res.completedMonths).toBe(12);
+      expect(res.chargeableMonths).toBe(12);
+      expect(res.interestRupees).toBe(7200);
+      expect(res.totalDueRupees).toBe(27200);
+      expect(res.yearlyBreakdown).toHaveLength(1);
+      expect(res.yearlyBreakdown[0]).toMatchObject({
+        year: 1,
+        months: 12,
+        startingPrincipalRupees: 20000,
+        interestRupees: 7200,
+        endingAmountRupees: 27200,
+      });
+    });
+
+    it("User Example: ₹20,000 at 3% for 13th month uses ₹27,200 as Year 2 capital -> ₹816 interest -> ₹28,016 total", () => {
+      const res = calculateGoldMortgageInterest({
+        mortgageDate: "2025-10-01",
+        principalRupees: 20000,
+        asOfDate: "2026-11-01", // 13 months
+        monthlyRate: 3,
+      });
+
+      expect(res.completedMonths).toBe(13);
+      expect(res.chargeableMonths).toBe(13);
+      expect(res.interestRupees).toBe(8016); // 7200 + 816
+      expect(res.totalDueRupees).toBe(28016); // 27200 + 816
+      expect(res.yearlyBreakdown).toHaveLength(2);
+      expect(res.yearlyBreakdown[0]).toMatchObject({
+        year: 1,
+        months: 12,
+        startingPrincipalRupees: 20000,
+        interestRupees: 7200,
+        endingAmountRupees: 27200,
+      });
+      expect(res.yearlyBreakdown[1]).toMatchObject({
+        year: 2,
+        months: 1,
+        startingPrincipalRupees: 27200,
+        interestRupees: 816,
+        endingAmountRupees: 28016,
+      });
+    });
+
+    it("keeps 0-5, 6-15, and 16+ day rounding rules after 12 months", () => {
+      // 12 months + 5 days -> stays 12.0 months
+      const res5d = calculateGoldMortgageInterest({
+        mortgageDate: "2025-10-01",
+        principalRupees: 20000,
+        asOfDate: "2026-10-06",
+        monthlyRate: 3,
+      });
+      expect(res5d.chargeableMonths).toBe(12);
+      expect(res5d.totalDueRupees).toBe(27200);
+      expect(res5d.yearlyBreakdown).toHaveLength(1);
+
+      // 12 months + 6 days -> 12.5 months -> 0.5 month charged on ₹27,200 = ₹408
+      const res6d = calculateGoldMortgageInterest({
+        mortgageDate: "2025-10-01",
+        principalRupees: 20000,
+        asOfDate: "2026-10-07",
+        monthlyRate: 3,
+      });
+      expect(res6d.chargeableMonths).toBe(12.5);
+      expect(res6d.yearlyBreakdown).toHaveLength(2);
+      expect(res6d.yearlyBreakdown[1].months).toBe(0.5);
+      expect(res6d.yearlyBreakdown[1].startingPrincipalRupees).toBe(27200);
+      expect(res6d.yearlyBreakdown[1].interestRupees).toBe(408);
+      expect(res6d.totalDueRupees).toBe(27608);
+
+      // 12 months + 16 days -> 13.0 months -> 1.0 month charged on ₹27,200 = ₹816
+      const res16d = calculateGoldMortgageInterest({
+        mortgageDate: "2025-10-01",
+        principalRupees: 20000,
+        asOfDate: "2026-10-17",
+        monthlyRate: 3,
+      });
+      expect(res16d.chargeableMonths).toBe(13);
+      expect(res16d.totalDueRupees).toBe(28016);
+    });
+
+    it("11 months + 16 days rounds to 12.0 months inside Year 1 without starting Year 2", () => {
+      const res = calculateGoldMortgageInterest({
+        mortgageDate: "2025-10-01",
+        principalRupees: 20000,
+        asOfDate: "2026-09-17", // 11 months + 16 days -> 12 chargeable months
+        monthlyRate: 3,
+      });
+      expect(res.completedMonths).toBe(11);
+      expect(res.remainderDays).toBe(16);
+      expect(res.chargeableMonths).toBe(12);
+      expect(res.yearlyBreakdown).toHaveLength(1);
+      expect(res.totalDueRupees).toBe(27200);
+    });
+
+    it("compounds again every 12 months (24 months & 25 months)", () => {
+      // 24 months: Year 1 -> 27,200; Year 2 -> 27,200 * 3% * 12 = 9,792 -> 36,992
+      const res24 = calculateGoldMortgageInterest({
+        mortgageDate: "2024-11-01",
+        principalRupees: 20000,
+        asOfDate: "2026-11-01",
+        monthlyRate: 3,
+      });
+      expect(res24.chargeableMonths).toBe(24);
+      expect(res24.yearlyBreakdown).toHaveLength(2);
+      expect(res24.yearlyBreakdown[1]).toMatchObject({
+        year: 2,
+        months: 12,
+        startingPrincipalRupees: 27200,
+        interestRupees: 9792,
+        endingAmountRupees: 36992,
+      });
+      expect(res24.totalDueRupees).toBe(36992);
+
+      // 25 months: Year 3 uses 36,992 as capital -> 36,992 * 3% * 1 = 1,109.76 -> 38,101.76
+      const res25 = calculateGoldMortgageInterest({
+        mortgageDate: "2024-10-01",
+        principalRupees: 20000,
+        asOfDate: "2026-11-01",
+        monthlyRate: 3,
+      });
+      expect(res25.chargeableMonths).toBe(25);
+      expect(res25.yearlyBreakdown).toHaveLength(3);
+      expect(res25.yearlyBreakdown[2]).toMatchObject({
+        year: 3,
+        months: 1,
+        startingPrincipalRupees: 36992,
+        interestRupees: 1109.76,
+        endingAmountRupees: 38101.76,
+      });
+      expect(res25.interestRupees).toBe(18101.76);
+      expect(res25.totalDueRupees).toBe(38101.76);
+    });
+
+    it("Simple Interest mode does not compound after 12 months", () => {
+      const res = calculateGoldMortgageInterest({
+        mortgageDate: "2025-10-01",
+        principalRupees: 20000,
+        asOfDate: "2026-11-01", // 13 months
+        monthlyRate: 3,
+        interestMode: "simple",
+      });
+
+      expect(res.interestMode).toBe("simple");
+      expect(res.chargeableMonths).toBe(13);
+      expect(res.interestRupees).toBe(7800); // 20000 * 3% * 13
+      expect(res.totalDueRupees).toBe(27800);
+      expect(res.yearlyBreakdown).toHaveLength(1);
     });
   });
 

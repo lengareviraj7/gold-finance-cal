@@ -5,6 +5,7 @@ import { Calculator } from "@/components/Calculator";
 import { HistoryList } from "@/components/HistoryList";
 import { SnapshotModal } from "@/components/SnapshotModal";
 import { HistoryRecord } from "@/lib/types";
+import { InterestMode } from "@/lib/calculator";
 
 export default function HomePage() {
   const [records, setRecords] = useState<HistoryRecord[]>([]);
@@ -18,6 +19,7 @@ export default function HomePage() {
     mortgageDate: string;
     principalRupees: number;
     monthlyRate?: number;
+    interestMode?: InterestMode;
   } | null>(null);
 
   // Load history records from MongoDB
@@ -78,9 +80,10 @@ export default function HomePage() {
   const handleRecalculateAsOfToday = (
     mortgageDate: string,
     principalRupees: number,
-    monthlyRate?: number
+    monthlyRate?: number,
+    interestMode?: InterestMode
   ) => {
-    setExternalPreset({ mortgageDate, principalRupees, monthlyRate });
+    setExternalPreset({ mortgageDate, principalRupees, monthlyRate, interestMode });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 

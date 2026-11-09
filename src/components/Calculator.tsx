@@ -15,8 +15,10 @@ import {
   getTodayKolkataDateString,
   formatIndianRupees,
   formatIndianDate,
+  DEFAULT_INTEREST_MODE,
   DEFAULT_MONTHLY_RATE,
   CalculationResult,
+  InterestMode,
 } from "@/lib/calculator";
 import { HistoryRecord } from "@/lib/types";
 
@@ -26,6 +28,7 @@ interface CalculatorProps {
     mortgageDate: string;
     principalRupees: number;
     monthlyRate?: number;
+    interestMode?: InterestMode;
   } | null;
 }
 
@@ -43,6 +46,7 @@ export function Calculator({
   const [mortgageDate, setMortgageDate] = useState<string>("");
   const [principalInput, setPrincipalInput] = useState<string>("");
   const [monthlyRateInput, setMonthlyRateInput] = useState<string>("2");
+  const [interestMode, setInterestMode] = useState<InterestMode>(DEFAULT_INTEREST_MODE);
 
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
@@ -86,7 +90,9 @@ export function Calculator({
       setMortgageDate(externalPreset.mortgageDate);
       setPrincipalInput(String(externalPreset.principalRupees));
       const targetRate = externalPreset.monthlyRate ?? DEFAULT_MONTHLY_RATE;
+      const targetMode = externalPreset.interestMode ?? DEFAULT_INTEREST_MODE;
       setMonthlyRateInput(String(targetRate));
+      setInterestMode(targetMode);
       setCalcError(null);
       setSaveSuccess(false);
       setSaveError(null);
@@ -97,6 +103,7 @@ export function Calculator({
           principalRupees: externalPreset.principalRupees,
           asOfDate: todayKolkata,
           monthlyRate: targetRate,
+          interestMode: targetMode,
         });
         setResult(calculated);
       } catch (err) {
@@ -143,6 +150,7 @@ export function Calculator({
         principalRupees: principal,
         asOfDate: todayKolkata,
         monthlyRate: rate,
+        interestMode,
       });
       setResult(calculated);
     } catch (err) {
@@ -155,6 +163,7 @@ export function Calculator({
     setMortgageDate("");
     setPrincipalInput("");
     setMonthlyRateInput("2"); // Keep 2% as default
+    setInterestMode(DEFAULT_INTEREST_MODE); // Keep Yearly Compounding as default
     setResult(null);
     setCalcError(null);
     setSaveSuccess(false);
@@ -176,6 +185,7 @@ export function Calculator({
           principalRupees: result.principalRupees,
           asOfDate: result.asOfDate,
           monthlyRate: result.monthlyRate,
+          interestMode: result.interestMode,
         }),
       });
 
@@ -268,7 +278,7 @@ export function Calculator({
                 step="any"
                 min="1"
                 required
-                placeholder="e.g. 50000"
+                placeholder="e.g. 20000"
                 value={principalInput}
                 onChange={(e) => {
                   setPrincipalInput(e.target.value);
@@ -353,6 +363,56 @@ export function Calculator({
             </p>
           </div>
 
+          {/* Interest Mode Toggle: Yearly Compounding vs Simple */}
+          <div>
+            <span className="block text-xs font-semibold text-stone-700 mb-1.5 uppercase tracking-wide">
+              Interest Calculation Method
+            </span>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Interest Calculation Method">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={interestMode === "yearly_compound"}
+                onClick={() => {
+                  setInterestMode("yearly_compound");
+                  setCalcError(null);
+                  setSaveSuccess(false);
+                }}
+                className={`py-2.5 px-3 rounded-xl border text-left transition cursor-pointer ${
+                  interestMode === "yearly_compound"
+                    ? "bg-amber-100/90 border-amber-600 text-amber-950 ring-1 ring-amber-600"
+                    : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
+                }`}
+              >
+                <span className="block text-xs font-semibold">Yearly Compound</span>
+                <span className="block text-[10px] text-stone-600 mt-0.5">
+                  Adds to capital every 12 mo
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="radio"
+                aria-checked={interestMode === "simple"}
+                onClick={() => {
+                  setInterestMode("simple");
+                  setCalcError(null);
+                  setSaveSuccess(false);
+                }}
+                className={`py-2.5 px-3 rounded-xl border text-left transition cursor-pointer ${
+                  interestMode === "simple"
+                    ? "bg-amber-100/90 border-amber-600 text-amber-950 ring-1 ring-amber-600"
+                    : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
+                }`}
+              >
+                <span className="block text-xs font-semibold">Simple Interest</span>
+                <span className="block text-[10px] text-stone-600 mt-0.5">
+                  Original principal only
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Validation Error Banner */}
           {calcError && (
             <div
@@ -385,27 +445,110 @@ export function Calculator({
         </form>
       </div>
 
-      {/* Results Display Card */}
+      {/* Results / Receipt Display Card */}
       {result && (
         <div className="bg-white rounded-2xl border border-amber-300/80 shadow-[0_2px_8px_rgba(180,131,37,0.08)] p-5 sm:p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Prominent Calculated Amount Due */}
           <div className="text-center p-4 rounded-xl bg-amber-50 border border-amber-200">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
-              Calculated Amount Due
-            </span>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                Calculated Amount Due
+              </span>
+            </div>
             <div className="text-3xl sm:text-4xl font-extrabold text-amber-900 tracking-tight mt-1">
               {formatIndianRupees(result.totalDueRupees)}
             </div>
             <div className="text-xs text-stone-600 mt-1">
-              Principal {formatIndianRupees(result.principalRupees)} + Interest {formatIndianRupees(result.interestRupees)}
+              Original Principal {formatIndianRupees(result.principalRupees)} + Total Interest {formatIndianRupees(result.interestRupees)}
+            </div>
+            <div className="mt-2">
+              <span className="inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md bg-amber-100/90 text-amber-900 border border-amber-300/70">
+                {result.interestMode === "yearly_compound"
+                  ? "Yearly Compounding (12-mo Rest)"
+                  : "Simple Interest"}
+              </span>
             </div>
           </div>
 
-          {/* Compact Formula Breakdown */}
-          <div className="px-3.5 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-center font-mono text-xs sm:text-sm text-stone-800">
-            {formatIndianRupees(result.principalRupees)} × {result.monthlyRate}% × {result.chargeableMonths} mo ={" "}
-            <strong className="text-amber-800">{formatIndianRupees(result.interestRupees)}</strong> interest
-          </div>
+          {/* Year-by-Year Compounding Receipt Breakdown (shown when compounded across > 1 year) */}
+          {result.yearlyBreakdown.length > 1 ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-stone-700">
+                  Yearly Receipt Breakdown
+                </h3>
+                <span className="text-[11px] text-stone-500">
+                  {result.yearlyBreakdown.length} periods
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {result.yearlyBreakdown.map((item, idx) => {
+                  const isLast = idx === result.yearlyBreakdown.length - 1;
+                  return (
+                    <div
+                      key={item.year}
+                      className={`p-3 rounded-xl border text-xs ${
+                        isLast
+                          ? "bg-amber-50/50 border-amber-200"
+                          : "bg-stone-50/90 border-stone-200/80"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-stone-200/60">
+                        <span className="font-bold text-stone-900">
+                          Year {item.year} ({item.months} {item.months === 1 ? "month" : "months"})
+                        </span>
+                        <span className="text-[11px] font-medium text-stone-600">
+                          {item.year === 1
+                            ? "Initial Capital"
+                            : `From Year ${item.year - 1} Balance`}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-stone-600">
+                          <span>Opening Capital</span>
+                          <span className="font-medium text-stone-800">
+                            {formatIndianRupees(item.startingPrincipalRupees)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-stone-600">
+                          <span>
+                            Interest ({result.monthlyRate}% × {item.months} mo)
+                          </span>
+                          <span className="font-semibold text-amber-800">
+                            + {formatIndianRupees(item.interestRupees)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-1 border-t border-stone-200/60 font-bold text-stone-900">
+                          <span>
+                            {isLast ? "Final Amount Due" : `End of Year ${item.year} Capital`}
+                          </span>
+                          <span className="text-amber-900">
+                            {formatIndianRupees(item.endingAmountRupees)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Compact Single-Period Formula Breakdown */
+            <div className="space-y-1.5">
+              <div className="px-3.5 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-center font-mono text-xs sm:text-sm text-stone-800">
+                {formatIndianRupees(result.principalRupees)} × {result.monthlyRate}% × {result.chargeableMonths} mo ={" "}
+                <strong className="text-amber-800">{formatIndianRupees(result.interestRupees)}</strong> interest
+              </div>
+              {result.interestMode === "yearly_compound" && result.chargeableMonths === 12 && (
+                <p className="text-[11px] text-amber-900 bg-amber-50/70 border border-amber-200/70 rounded-lg px-3 py-1.5 text-center">
+                  1 full year completed — from the 13th month onward,{" "}
+                  <strong>{formatIndianRupees(result.totalDueRupees)}</strong> becomes the new capital.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Details Table */}
           <div className="bg-stone-50/70 rounded-xl border border-stone-200/80 divide-y divide-stone-200/60 text-xs sm:text-sm">
@@ -445,7 +588,16 @@ export function Calculator({
             </div>
 
             <div className="flex justify-between items-center px-3.5 py-2.5">
-              <span className="text-stone-500">Interest Accrued</span>
+              <span className="text-stone-500">Interest Method</span>
+              <span className="font-semibold text-stone-800">
+                {result.interestMode === "yearly_compound"
+                  ? "Yearly Compounding"
+                  : "Simple Interest"}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center px-3.5 py-2.5">
+              <span className="text-stone-500">Total Interest Accrued</span>
               <span className="font-bold text-amber-800">
                 {formatIndianRupees(result.interestRupees)}
               </span>
@@ -491,7 +643,11 @@ export function Calculator({
           </div>
 
           <p className="text-[11px] text-stone-600 text-center leading-normal">
-            Calculated amount due under simple interest terms ({result.monthlyRate}% / month). This calculation does not constitute a legal or contractual payoff quote.
+            Calculated amount due under{" "}
+            {result.interestMode === "yearly_compound"
+              ? "yearly compounding (12-month rest)"
+              : "simple interest"}{" "}
+            terms ({result.monthlyRate}% / month). This calculation does not constitute a legal or contractual payoff quote.
           </p>
         </div>
       )}

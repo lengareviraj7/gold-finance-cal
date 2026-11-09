@@ -1,3 +1,5 @@
+import type { InterestMode, YearlyBreakdownItem } from "./calculator";
+
 export interface HistoryRecord {
   _id?: string;
   mortgageDate: string; // YYYY-MM-DD
@@ -5,6 +7,7 @@ export interface HistoryRecord {
   principalPaise: number;
   principalRupees: number;
   monthlyRate: number;
+  interestMode?: InterestMode;
   completedMonths: number;
   remainderDays: number;
   chargeableMonths: number;
@@ -13,6 +16,7 @@ export interface HistoryRecord {
   totalDuePaise: number;
   totalDueRupees: number;
   elapsedDescription: string;
+  yearlyBreakdown?: YearlyBreakdownItem[];
   ruleVersion: string;
   createdAt: string; // ISO 8601 string for client serialization
 }

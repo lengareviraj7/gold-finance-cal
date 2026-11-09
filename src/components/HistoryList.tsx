@@ -164,7 +164,12 @@ export function HistoryList({
                   {formatIndianRupees(rec.principalRupees).replace("₹", "")}
                 </span>
                 <span className="text-[11px] text-stone-600 block mt-0.5">
-                  {rec.chargeableMonths} mo @ {rec.monthlyRate}%
+                  {rec.chargeableMonths} mo @ {rec.monthlyRate}% •{" "}
+                  {(rec.interestMode ??
+                    (rec.ruleVersion?.includes("simple") ? "simple" : "yearly_compound")) ===
+                  "yearly_compound"
+                    ? "Compound"
+                    : "Simple"}
                 </span>
               </div>
 

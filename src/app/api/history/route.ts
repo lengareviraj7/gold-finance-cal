@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
-import { calculateGoldMortgageInterest } from "@/lib/calculator";
+import {
+  calculateGoldMortgageInterest,
+  DEFAULT_INTEREST_MODE,
+  InterestMode,
+} from "@/lib/calculator";
 import { ObjectId, Filter, Document } from "mongodb";
 
 export async function GET(req: NextRequest) {
@@ -41,6 +45,12 @@ export async function GET(req: NextRequest) {
       principalPaise: doc.principalPaise,
       principalRupees: doc.principalRupees,
       monthlyRate: doc.monthlyRate,
+      interestMode:
+        doc.interestMode === "simple" || doc.interestMode === "yearly_compound"
+          ? doc.interestMode
+          : doc.ruleVersion?.includes("simple")
+          ? "simple"
+          : DEFAULT_INTEREST_MODE,
       completedMonths: doc.completedMonths,
       remainderDays: doc.remainderDays,
       chargeableMonths: doc.chargeableMonths,
@@ -49,6 +59,7 @@ export async function GET(req: NextRequest) {
       totalDuePaise: doc.totalDuePaise,
       totalDueRupees: doc.totalDueRupees,
       elapsedDescription: doc.elapsedDescription,
+      yearlyBreakdown: Array.isArray(doc.yearlyBreakdown) ? doc.yearlyBreakdown : [],
       ruleVersion: doc.ruleVersion,
       createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : new Date().toISOString(),
     }));
@@ -75,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { mortgageDate, principalRupees, asOfDate, monthlyRate } = body || {};
+    const { mortgageDate, principalRupees, asOfDate, monthlyRate, interestMode } = body || {};
 
     if (!mortgageDate || typeof mortgageDate !== "string") {
       return NextResponse.json({ error: "Mortgage date is required." }, { status: 400 });
@@ -92,12 +103,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "As-of date is required." }, { status: 400 });
     }
 
+    if (
+      interestMode !== undefined &&
+      interestMode !== "yearly_compound" &&
+      interestMode !== "simple"
+    ) {
+      return NextResponse.json(
+        { error: "Interest mode must be 'yearly_compound' or 'simple'." },
+        { status: 400 }
+      );
+    }
+
+    const resolvedInterestMode: InterestMode = interestMode ?? DEFAULT_INTEREST_MODE;
+
     // CRITICAL: Always re-calculate on the server to prevent client tampering
     const calculated = calculateGoldMortgageInterest({
       mortgageDate,
       principalRupees,
       asOfDate,
       monthlyRate: typeof monthlyRate === "number" && monthlyRate >= 0 ? monthlyRate : undefined,
+      interestMode: resolvedInterestMode,
     });
 
     const now = new Date();
@@ -107,6 +132,7 @@ export async function POST(req: NextRequest) {
       principalPaise: calculated.principalPaise,
       principalRupees: calculated.principalRupees,
       monthlyRate: calculated.monthlyRate,
+      interestMode: calculated.interestMode,
       completedMonths: calculated.completedMonths,
       remainderDays: calculated.remainderDays,
       chargeableMonths: calculated.chargeableMonths,
@@ -115,6 +141,7 @@ export async function POST(req: NextRequest) {
       totalDuePaise: calculated.totalDuePaise,
       totalDueRupees: calculated.totalDueRupees,
       elapsedDescription: calculated.elapsedDescription,
+      yearlyBreakdown: calculated.yearlyBreakdown,
       ruleVersion: calculated.ruleVersion,
       createdAt: now,
     };

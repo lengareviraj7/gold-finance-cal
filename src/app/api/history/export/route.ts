@@ -31,6 +31,7 @@ export async function GET() {
       "As Of Date",
       "Principal (₹)",
       "Monthly Rate (%)",
+      "Interest Mode",
       "Completed Months",
       "Remainder Days",
       "Chargeable Months",
@@ -44,12 +45,22 @@ export async function GET() {
     const rows: string[] = [headers.map(escapeCsvCell).join(",")];
 
     for (const rec of records) {
+      const modeLabel =
+        rec.interestMode === "simple"
+          ? "Simple Interest"
+          : rec.interestMode === "yearly_compound"
+          ? "Yearly Compounding"
+          : rec.ruleVersion?.includes("simple")
+          ? "Simple Interest"
+          : "Yearly Compounding";
+
       const row = [
         rec._id.toString(),
         rec.mortgageDate,
         rec.asOfDate,
         (rec.principalRupees ?? (rec.principalPaise / 100)).toFixed(2),
         rec.monthlyRate ?? 2,
+        modeLabel,
         rec.completedMonths,
         rec.remainderDays,
         rec.chargeableMonths,
