@@ -15,6 +15,8 @@ A lightweight, mobile-first web app designed specifically for **Siddheshwar Jewe
 - **PIN Access Protection**: Minimal owner authentication gate using `HttpOnly`, `Secure`, `SameSite=Lax` cryptographic HMAC session cookies.
 - **History Snapshot Log**: Persists frozen calculations to MongoDB with server-side validation and recalculation.
 - **Frozen Snapshot Viewer**: Inspects original records without silently recalculating, with a one-click *"Recalculate as of today"* option.
+- **Dark Mode**: Warm charcoal & gold dark theme toggleable from the header (light mode by default, preference saved automatically).
+- **Demo Mode System**: Header toggle (plus offline database fallback prompt) providing isolated sample history, 1-tap demo calculation scenarios, a customizable Simulated As-Of Date picker, and client-side Demo CSV export without touching live MongoDB data.
 - **RFC-4180 CSV Export**: One-click export of calculation history for offline bookkeeping backup.
 - **PWA Ready**: Add to home screen on iOS Safari and Android Chrome with standalone display and custom icon.
 

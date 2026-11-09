@@ -21,8 +21,24 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#b48325",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#b48325" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0a09" },
+  ],
 };
+
+const themeInitScript = `
+(function() {
+  try {
+    var saved = localStorage.getItem("sj_theme");
+    if (saved === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  } catch (e) {}
+})();
+`;
 
 export default function RootLayout({
   children,
@@ -30,8 +46,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="bg-[#fbf9f5]">
-      <body className="antialiased min-h-screen bg-[#fbf9f5] text-stone-900 selection:bg-amber-100 selection:text-amber-900">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className="bg-[#fbf9f5] dark:bg-stone-950"
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="antialiased min-h-screen bg-[#fbf9f5] dark:bg-stone-950 text-stone-900 dark:text-stone-100 selection:bg-amber-100 dark:selection:bg-amber-900/60 selection:text-amber-900 dark:selection:text-amber-100 transition-colors duration-150">
         {children}
       </body>
     </html>
